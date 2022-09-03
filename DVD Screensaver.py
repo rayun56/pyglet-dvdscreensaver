@@ -14,7 +14,7 @@ black = 0, 0, 0
 screen = pygame.display.set_mode((0, 0), pygame.FULLSCREEN)
 pygame.display.set_caption("DVD Screensaver")
 
-dvds = [pygame.image.load("dvdlogo-0" + str(x) + ".png") for x in range(5)]
+dvds = [pygame.image.load("Images\dvdlogo-0" + str(x) + ".png") for x in range(5)]
 dvdrect = dvds[0].get_rect()
 dvdrect.x = width / 2 + random.randint(0, 100)
 dvdrect.y = height / 2 + random.randint(0, 100)
