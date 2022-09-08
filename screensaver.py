@@ -12,35 +12,44 @@ class AnimatedText(pyglet.text.Label):
                  anchor_x='left', anchor_y='baseline',
                  align='left',
                  multiline=False, dpi=None, batch=None, group=None, **kwargs):
-        super().__init__(text, font_name, font_size, bold, italic, stretch, color, x, y, width, height, anchor_x,
-                         anchor_y, align, multiline, dpi, batch, group)
         self.anim_time = 2.0
         self.dt = 0
         self.x_start = 0
         self.x_end = 0
         self.y_start = 0
         self.y_end = 0
-        self.move_func = self.cubic_move
+        self.move_func = self.exponential_move
+        self.conclude_func = None
         self.moving = False
         self.reverse = False
         self.stationary_time = 0.0
         if 'x_start' in kwargs.keys():
             self.x_start = kwargs.get('x_start')
             self.x_end = kwargs.get('x_end')
+            x = self.x_start
         if 'y_start' in kwargs.keys():
             self.y_start = kwargs.get('y_start')
             self.y_end = kwargs.get('y_end')
+            y = self.y_start
         if 'anim_time' in kwargs.keys():
             self.anim_time = kwargs.get('anim_time')
+        if 'conclude_func' in kwargs.keys():
+            self.conclude_func = kwargs.get('conclude_func')
+        super().__init__(text, font_name, font_size, bold, italic, stretch, color, x, y, width, height, anchor_x,
+                         anchor_y, align, multiline, dpi, batch, group)
+
+    def __str__(self):
+        return self.text
 
     def start_move(self):
         self.moving = True
+        self.dt = 0.0
         self.stationary_time = 0.0
-        print('starting move')
 
     def reverse_move(self):
         self.reverse = True
         self.moving = True
+        self.dt = self.anim_time
         self.stationary_time = 0.0
 
     def set_anim_time(self, time):
@@ -66,17 +75,24 @@ class AnimatedText(pyglet.text.Label):
         y_rng = self.y_end - self.y_start
         abs_time = self.dt / self.anim_time
         abs_prog = 1 - (1 - abs_time) ** 3
-        self.x = abs_prog * x_rng
-        self.y = abs_prog * y_rng
-        print(f"new coords: {self.x} {self.y}")
+        self.x = abs_prog * x_rng + self.x_start
+        self.y = abs_prog * y_rng + self.y_start
 
     def linear_move(self):
         x_rng = self.x_end - self.x_start
         y_rng = self.y_end - self.y_start
         abs_time = self.dt / self.anim_time
         abs_prog = abs_time
-        self.x = abs_prog * x_rng
-        self.y = abs_prog * y_rng
+        self.x = abs_prog * x_rng + self.x_start
+        self.y = abs_prog * y_rng + self.y_start
+
+    def exponential_move(self):
+        x_rng = self.x_end - self.x_start
+        y_rng = self.y_end - self.y_start
+        abs_time = self.dt / self.anim_time
+        abs_prog = 1.0 if abs_time == 1.0 else 1 - 2 ** (-10*abs_time)
+        self.x = abs_prog * x_rng + self.x_start
+        self.y = abs_prog * y_rng + self.y_start
 
     def update_pos(self, dt):
         if self.moving:
@@ -84,7 +100,6 @@ class AnimatedText(pyglet.text.Label):
                 self.dt -= dt
             else:
                 self.dt += dt
-                print('updated time')
             self.move_func()
         else:
             self.stationary_time += dt
@@ -100,6 +115,8 @@ class AnimatedText(pyglet.text.Label):
             self.dt = 0.0
             self.x = self.x_start
             self.y = self.y_start
+            if self.conclude_func:
+                self.conclude_func()
 
 
 class Screensaver:
@@ -125,18 +142,34 @@ class Screensaver:
         self.main_image.x, self.main_image.y = (self._window.width // 2, self._window.height // 2)
 
         self.speed = (160, 160)
+        self.last_bounce = 5.0
+        self.corner_threshold = 0.010  # 10 milliseconds
 
-        self.hits_label = AnimatedText('Corner Hits: 0',
-                                       font_name='Calibri',
-                                       font_size=26,
-                                       x=30,
-                                       y=self._window.height + 50,
-                                       anchor_x='left',
-                                       anchor_y='top',
-                                       x_start=30,
-                                       x_end=30,
-                                       y_start=-10,
-                                       y_end=50)
+        self.labels = []
+
+        self.labels.append(AnimatedText('Corner Hits: 0',
+                                        font_name='Bahnschrift',
+                                        font_size=52,
+                                        anchor_x='left',
+                                        anchor_y='top',
+                                        x_start=30,
+                                        x_end=30,
+                                        y_start=0,
+                                        y_end=90,
+                                        anim_time=1.0,
+                                        conclude_func=self.swap_labels))
+        self.labels.append(AnimatedText('Time since last corner hit: None',
+                                        font_name='Bahnschrift',
+                                        font_size=42,
+                                        anchor_x='left',
+                                        anchor_y='top',
+                                        x_start=30,
+                                        x_end=30,
+                                        y_start=0,
+                                        y_end=80,
+                                        conclude_func=self.swap_labels))
+        self.current_label = 0
+        self.labels[0].start_move()
 
     def _get_image(self, fp: str):
         """
@@ -210,6 +243,12 @@ class Screensaver:
                 break
         return img.crop((xl, yt, xr, yb))
 
+    def swap_labels(self):
+        self.current_label += 1
+        if self.current_label == len(self.labels):
+            self.current_label = 0
+        self.labels[self.current_label].start_move()
+
     def on_bounce(self):
         if self.bg_image_on_bounce:
             # TODO: Show bg image on bounce
@@ -233,29 +272,33 @@ class Screensaver:
         if self.bg_image:
             self.bg_image.draw()
         self.main_image.draw()
-        self.hits_label.draw()
+        self.labels[self.current_label].draw()
 
     def update(self, dt):
         if self.mode == 'standard':
             if self.main_image.x < 0 or self.main_image.x > self._window.width - self.main_image.width:
+                if self.last_bounce <= self.corner_threshold:
+                    self.on_corner()
                 self.speed = (-self.speed[0], self.speed[1])
                 self.on_bounce()
+                self.last_bounce = 0
 
             if self.main_image.y < 0 or self.main_image.y > self._window.height - self.main_image.height:
+                if self.last_bounce <= self.corner_threshold:
+                    self.on_corner()
                 self.speed = (self.speed[0], -self.speed[1])
                 self.on_bounce()
+                self.last_bounce = 0
 
             self.main_image.x += self.speed[0] * dt
             self.main_image.y += self.speed[1] * dt
+            self.last_bounce += dt
         if self.mode == 'insanelike':
             pass
         if self.mode == 'infuriating':
             pass
 
-        if not self.hits_label.moving:
-            if self.hits_label.stationary_time >= 5:
-                if self.hits_label.x == self.hits_label.x_start:
-                    self.hits_label.start_move()
-                else:
-                    self.hits_label.reverse_move()
-        self.hits_label.update_pos(dt)
+        if not self.labels[self.current_label].moving:
+            if self.labels[self.current_label].stationary_time >= 5:
+                self.labels[self.current_label].reverse_move()
+        self.labels[self.current_label].update_pos(dt)
