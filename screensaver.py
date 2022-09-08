@@ -1,6 +1,7 @@
 import time
 import pyglet
 import random
+import datetime
 
 from PIL import Image
 
@@ -168,16 +169,23 @@ class Screensaver:
         self.corner_threshold = 0.018  # 18 milliseconds seemed to be a pretty good threshold
         self.corner_hits = 0
         self.last_corner_hit = None
+        self.time_label = pyglet.text.Label("",
+                                            font_name='Bahnschrift',
+                                            font_size=42,
+                                            anchor_x='center',
+                                            anchor_y='top',
+                                            x=self._window.width // 2,
+                                            y=self._window.height - 5)
 
         self.labels = []
 
         self.labels.append(AnimatedText('Corner Hits: 0',
                                         font_name='Bahnschrift',
                                         font_size=52,
-                                        anchor_x='left',
+                                        anchor_x='center',
                                         anchor_y='top',
-                                        x_start=30,
-                                        x_end=30,
+                                        x_start=self._window.width // 2,
+                                        x_end=self._window.width // 2,
                                         y_start=0,
                                         y_end=90,
                                         anim_time=1.0,
@@ -185,10 +193,10 @@ class Screensaver:
         self.labels.append(AnimatedText('Last Hit: None',
                                         font_name='Bahnschrift',
                                         font_size=46,
-                                        anchor_x='left',
+                                        anchor_x='center',
                                         anchor_y='top',
-                                        x_start=30,
-                                        x_end=30,
+                                        x_start=self._window.width // 2,
+                                        x_end=self._window.width // 2,
                                         y_start=0,
                                         y_end=85,
                                         conclude_func=self.swap_labels))
@@ -304,6 +312,7 @@ class Screensaver:
             self.bg_image.draw()
         self.main_image.draw()
         self.labels[self.current_label].draw()
+        self.time_label.draw()
 
     def update(self, dt):
         if self.mode == 'standard':
@@ -341,6 +350,7 @@ class Screensaver:
             pass
 
         if not self.labels[self.current_label].moving:
-            if self.labels[self.current_label].get_st_time() >= 5:
+            if self.labels[self.current_label].get_st_time() >= 15:
                 self.labels[self.current_label].reverse_move()
         self.labels[self.current_label].update_pos(dt)
+        self.time_label.text = datetime.datetime.now().strftime("%H:%M")

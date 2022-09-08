@@ -28,7 +28,7 @@ def update(dt, *args, **kwargs):
     win.update(dt)
 
 
-pyglet.clock.schedule(update, 1/144.0)
+pyglet.clock.schedule(update, 1/288.0)
 
 # while True:
 #     pyglet.clock.tick()
