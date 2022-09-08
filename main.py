@@ -19,6 +19,11 @@ def on_draw():
     win.on_draw()
 
 
+@window.event
+def on_key_press(symbol, modifiers):
+    win.on_key_press(symbol, modifiers)
+
+
 def update(dt, *args, **kwargs):
     win.update(dt)
 

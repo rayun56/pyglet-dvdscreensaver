@@ -1,7 +1,6 @@
 import time
 import pyglet
 import random
-import humanize
 
 from PIL import Image
 
@@ -33,10 +32,8 @@ def _display_time(seconds, granularity=2):
 class AnimatedText(pyglet.text.Label):
     def __init__(self, text='', font_name=None, font_size=None, bold=False, italic=False, stretch=False,
                  color=(255, 255, 255, 255),
-                 x=0, y=0, width=None, height=None,
-                 anchor_x='left', anchor_y='baseline',
-                 align='left',
-                 multiline=False, dpi=None, batch=None, group=None, **kwargs):
+                 x=0, y=0, width=None, height=None, anchor_x='left', anchor_y='baseline',
+                 align='left', multiline=False, dpi=None, batch=None, group=None, **kwargs):
         self.anim_time = 2.0
         self.dt = 0
         self.x_start = 0
@@ -100,24 +97,21 @@ class AnimatedText(pyglet.text.Label):
         y_rng = self.y_end - self.y_start
         abs_time = self.dt / self.anim_time
         abs_prog = 1 - (1 - abs_time) ** 3
-        self.x = abs_prog * x_rng + self.x_start
-        self.y = abs_prog * y_rng + self.y_start
+        self.update(abs_prog * x_rng + self.x_start, abs_prog * y_rng + self.y_start)
 
     def linear_move(self):
         x_rng = self.x_end - self.x_start
         y_rng = self.y_end - self.y_start
         abs_time = self.dt / self.anim_time
         abs_prog = abs_time
-        self.x = abs_prog * x_rng + self.x_start
-        self.y = abs_prog * y_rng + self.y_start
+        self.update(abs_prog * x_rng + self.x_start, abs_prog * y_rng + self.y_start)
 
     def exponential_move(self):
         x_rng = self.x_end - self.x_start
         y_rng = self.y_end - self.y_start
         abs_time = self.dt / self.anim_time
         abs_prog = 1.0 if abs_time == 1.0 else 1 - 2 ** (-10*abs_time)
-        self.x = abs_prog * x_rng + self.x_start
-        self.y = abs_prog * y_rng + self.y_start
+        self.update(abs_prog * x_rng + self.x_start, abs_prog * y_rng + self.y_start)
 
     def update_pos(self, dt):
         if self.moving:
@@ -164,11 +158,14 @@ class Screensaver:
             self.main_image = self.main_image_sequence[0]
         self.main_image.scale = kwargs.get('main_image_scale') if 'main_image_scale' in kwargs.keys() else 1
 
-        self.main_image.x, self.main_image.y = (self._window.width // 2, self._window.height // 2)
+        x_rng = (2, self._window.width - self.main_image.width - 2)
+        y_rng = (2, self._window.height - self.main_image.height - 2)
+        self.main_image.x = random.randint(x_rng[0], x_rng[1])
+        self.main_image.y = random.randint(y_rng[0], y_rng[1])
 
         self.speed = (160, 160)
         self.last_bounce = 5.0
-        self.corner_threshold = 0.010  # 10 milliseconds
+        self.corner_threshold = 0.018  # 18 milliseconds seemed to be a pretty good threshold
         self.corner_hits = 0
         self.last_corner_hit = None
 
@@ -203,12 +200,12 @@ class Screensaver:
         Returns a pyglet Sprite containing the image/animation
 
         :param fp: filepath of the image
-        :return: tuple
+        :return: sprite with image
         """
         if not fp:
             blk = Image.new('RGB', (10, 10), (0, 0, 0))
             image = pyglet.image.ImageData(10, 10, 'RGB', blk.tobytes(), pitch=-10 * 4)
-            return pyglet.sprite.Sprite(img=image)
+            return pyglet.sprite.Sprite(img=image, subpixel=True)
         fext = fp[fp.rfind('.'):]
         if fext == '.gif':
             anim = pyglet.resource.animation(fp)
@@ -217,7 +214,7 @@ class Screensaver:
         elif fext in ['.png', '.jpg', '.bmp']:
             ci = self._crop_image(Image.open(fp))
             image = pyglet.image.ImageData(ci.width, ci.height, ci.mode, ci.tobytes(), pitch=-ci.width * 4)
-            return pyglet.sprite.Sprite(img=image)
+            return pyglet.sprite.Sprite(img=image, subpixel=True)
         else:
             raise NotImplementedError
 
@@ -269,6 +266,10 @@ class Screensaver:
             if yb == j:
                 break
         return img.crop((xl, yt, xr, yb))
+
+    def on_key_press(self, button, modifiers):
+        if button == pyglet.window.key.SPACE:
+            self.speed = (-self.speed[0], -self.speed[1])
 
     def swap_labels(self):
         self.current_label += 1
@@ -328,8 +329,8 @@ class Screensaver:
                 self.on_bounce()
                 self.last_bounce = 0
 
-            self.main_image.x += self.speed[0] * dt
-            self.main_image.y += self.speed[1] * dt
+            self.main_image.update(self.main_image.x + self.speed[0] * dt,
+                                   self.main_image.y + self.speed[1] * dt)
             self.last_bounce += dt
             if self.last_corner_hit:
                 self.labels[1].set_text(f"Last hit:"

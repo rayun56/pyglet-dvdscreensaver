@@ -16,6 +16,10 @@ class MainWindow:
         if self.scr:
             self.scr.on_draw()
 
+    def on_key_press(self, symbol, modifiers):
+        if self.scr:
+            self.scr.on_key_press(symbol, modifiers)
+
     def update(self, dt):
         if self.scr:
             self.scr.update(dt)
