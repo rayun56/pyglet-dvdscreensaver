@@ -1,8 +1,33 @@
+import time
 import pyglet
-import os
 import random
+import humanize
 
 from PIL import Image
+
+
+_intervals = (
+    ('weeks', 604800),
+    ('days', 86400),
+    ('hours', 3600),
+    ('minutes', 60),
+    ('seconds', 1),
+)
+
+
+def _display_time(seconds, granularity=2):
+    result = []
+
+    for name, count in _intervals:
+        value = seconds // count
+        if value:
+            seconds -= value * count
+            if value == 1:
+                name = name.rstrip('s')
+            result.append("{:0.0f} {}".format(value, name))
+    if not result:
+        return '0 seconds'
+    return ' '.join(result[:granularity])
 
 
 class AnimatedText(pyglet.text.Label):
@@ -144,6 +169,8 @@ class Screensaver:
         self.speed = (160, 160)
         self.last_bounce = 5.0
         self.corner_threshold = 0.010  # 10 milliseconds
+        self.corner_hits = 0
+        self.last_corner_hit = None
 
         self.labels = []
 
@@ -158,15 +185,15 @@ class Screensaver:
                                         y_end=90,
                                         anim_time=1.0,
                                         conclude_func=self.swap_labels))
-        self.labels.append(AnimatedText('Time since last corner hit: None',
+        self.labels.append(AnimatedText('Last Hit: None',
                                         font_name='Bahnschrift',
-                                        font_size=42,
+                                        font_size=46,
                                         anchor_x='left',
                                         anchor_y='top',
                                         x_start=30,
                                         x_end=30,
                                         y_start=0,
-                                        y_end=80,
+                                        y_end=85,
                                         conclude_func=self.swap_labels))
         self.current_label = 0
         self.labels[0].start_move()
@@ -263,10 +290,13 @@ class Screensaver:
             self.main_image.x, self.main_image.y = x, y
 
     def on_corner(self):
+        self.corner_hits += 1
+        self.last_corner_hit = time.perf_counter()
         if self.bg_image_on_corner:
             # TODO: Show bg image on corner
             # TODO: Play sound effect on corner
             pass
+        self.labels[0].set_text('Corner Hits: ' + str(self.corner_hits))
 
     def on_draw(self):
         if self.bg_image:
@@ -279,6 +309,10 @@ class Screensaver:
             if self.main_image.x < 0 or self.main_image.x > self._window.width - self.main_image.width:
                 if self.last_bounce <= self.corner_threshold:
                     self.on_corner()
+                if self.main_image.x < 0:
+                    self.main_image.x = 0
+                else:
+                    self.main_image.x = self._window.width - self.main_image.width
                 self.speed = (-self.speed[0], self.speed[1])
                 self.on_bounce()
                 self.last_bounce = 0
@@ -286,6 +320,10 @@ class Screensaver:
             if self.main_image.y < 0 or self.main_image.y > self._window.height - self.main_image.height:
                 if self.last_bounce <= self.corner_threshold:
                     self.on_corner()
+                if self.main_image.y < 0:
+                    self.main_image.y = 0
+                else:
+                    self.main_image.y = self._window.height - self.main_image.height
                 self.speed = (self.speed[0], -self.speed[1])
                 self.on_bounce()
                 self.last_bounce = 0
@@ -293,12 +331,15 @@ class Screensaver:
             self.main_image.x += self.speed[0] * dt
             self.main_image.y += self.speed[1] * dt
             self.last_bounce += dt
+            if self.last_corner_hit:
+                self.labels[1].set_text(f"Last hit:"
+                                        f" {_display_time(time.perf_counter() - self.last_corner_hit)} ago")
         if self.mode == 'insanelike':
             pass
         if self.mode == 'infuriating':
             pass
 
         if not self.labels[self.current_label].moving:
-            if self.labels[self.current_label].stationary_time >= 5:
+            if self.labels[self.current_label].get_st_time() >= 5:
                 self.labels[self.current_label].reverse_move()
         self.labels[self.current_label].update_pos(dt)
