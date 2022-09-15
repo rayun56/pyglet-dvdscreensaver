@@ -1,4 +1,4 @@
-# pygame-dvdscreensaver
+# pyglet-dvdscreensaver
 Configurable DVD Screensaver written with pyglet
 
 ## Running
